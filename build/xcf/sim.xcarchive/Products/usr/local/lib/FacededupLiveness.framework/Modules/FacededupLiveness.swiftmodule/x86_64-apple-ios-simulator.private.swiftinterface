@@ -1,0 +1,81 @@
+// swift-interface-format-version: 1.0
+// swift-compiler-version: Apple Swift version 6.3.2 effective-5.10 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)
+// swift-module-flags: -target x86_64-apple-ios14.0-simulator -enable-objc-interop -enable-library-evolution -swift-version 5 -O -enable-experimental-feature DebugDescriptionMacro -module-name FacededupLiveness
+// swift-module-flags-ignorable: -no-verify-emitted-module-interface -formal-cxx-interoperability-mode=off -interface-compiler-version 6.3.2
+import Foundation
+import Swift
+import SystemConfiguration
+import UIKit
+import WebKit
+import _Concurrency
+import _StringProcessing
+import _SwiftConcurrencyShims
+public struct FacededupConfig {
+  public var baseURL: Foundation.URL
+  public var password: Swift.String?
+  public var licenseKey: Swift.String?
+  public var subjectId: Swift.String?
+  public var flow: Swift.String?
+  public var method: Swift.String?
+  public var strictness: Swift.String?
+  public var agentMode: Swift.Bool?
+  public var showSettings: Swift.Bool?
+  public var showBack: Swift.Bool?
+  public var productName: Swift.String?
+  public var primaryColor: Swift.String?
+  public var attestationProvider: ((_ nonce: Swift.String) async -> Swift.String?)?
+  public init(baseURL: Foundation.URL, password: Swift.String? = nil, licenseKey: Swift.String? = nil, subjectId: Swift.String? = nil, flow: Swift.String? = "liveness", method: Swift.String? = nil, strictness: Swift.String? = nil, agentMode: Swift.Bool? = nil, showSettings: Swift.Bool? = nil, showBack: Swift.Bool? = false, productName: Swift.String? = nil, primaryColor: Swift.String? = nil, attestationProvider: ((_ nonce: Swift.String) async -> Swift.String?)? = nil)
+}
+public struct FacededupResult {
+  public let type: Swift.String
+  public let outcome: Swift.String?
+  public let isLive: Swift.Bool?
+  public let score: Swift.Double?
+  public let decision: Swift.String?
+  public let enrollmentId: Swift.String?
+  public let raw: [Swift.String : Any]
+  public var passed: Swift.Bool {
+    get
+  }
+}
+public protocol FacededupDelegate : AnyObject {
+  func facededup(_ controller: FacededupLiveness.FacededupVerificationController, didFinish result: FacededupLiveness.FacededupResult)
+  func facededupDidCancel(_ controller: FacededupLiveness.FacededupVerificationController)
+}
+extension FacededupLiveness.FacededupDelegate {
+  public func facededupDidCancel(_ controller: FacededupLiveness.FacededupVerificationController)
+}
+@objc @_hasMissingDesignatedInitializers @_Concurrency.MainActor @preconcurrency final public class FacededupVerificationController : UIKit.UIViewController, WebKit.WKUIDelegate, WebKit.WKNavigationDelegate, WebKit.WKScriptMessageHandler {
+  @_Concurrency.MainActor @preconcurrency weak final public var delegate: (any FacededupLiveness.FacededupDelegate)?
+  @_Concurrency.MainActor @preconcurrency public init(config: FacededupLiveness.FacededupConfig, onFinish: ((FacededupLiveness.FacededupResult) -> Swift.Void)? = nil)
+  @_Concurrency.MainActor @preconcurrency @objc override final public func loadView()
+  @_Concurrency.MainActor @preconcurrency @objc override final public func viewDidLoad()
+  @_Concurrency.MainActor @preconcurrency @objc override final public func viewDidDisappear(_ animated: Swift.Bool)
+  @available(iOS 15.0, *)
+  @_Concurrency.MainActor @preconcurrency @objc final public func webView(_ webView: WebKit.WKWebView, requestMediaCapturePermissionFor origin: WebKit.WKSecurityOrigin, initiatedByFrame frame: WebKit.WKFrameInfo, type: WebKit.WKMediaCaptureType, decisionHandler: @escaping (WebKit.WKPermissionDecision) -> Swift.Void)
+  @_Concurrency.MainActor @preconcurrency @objc final public func webView(_ webView: WebKit.WKWebView, didReceive challenge: Foundation.URLAuthenticationChallenge, completionHandler: @escaping (Foundation.URLSession.AuthChallengeDisposition, Foundation.URLCredential?) -> Swift.Void)
+  @_Concurrency.MainActor @preconcurrency @objc final public func webView(_ webView: WebKit.WKWebView, didFinish navigation: WebKit.WKNavigation!)
+  @_Concurrency.MainActor @preconcurrency @objc final public func webView(_ webView: WebKit.WKWebView, didFailProvisionalNavigation navigation: WebKit.WKNavigation!, withError error: any Swift.Error)
+  @_Concurrency.MainActor @preconcurrency @objc final public func webView(_ webView: WebKit.WKWebView, didFail navigation: WebKit.WKNavigation!, withError error: any Swift.Error)
+  @_Concurrency.MainActor @preconcurrency @objc final public func userContentController(_ controller: WebKit.WKUserContentController, didReceive message: WebKit.WKScriptMessage)
+  @objc deinit
+}
+final public class LivenessClient {
+  public init(baseURL: Foundation.URL, session: Foundation.URLSession = .shared)
+  final public func grantConsent(subjectId: Swift.String, signalScopes: [Swift.String]) async throws -> Swift.String
+  final public func openRequest(subjectId: Swift.String, consentId: Swift.String, deviceContext: [Swift.String : Any]?) async throws -> [Swift.String : Any]
+  final public func challenge(requestId: Swift.String) async throws -> [Swift.String : Any]
+  final public func verify(requestId: Swift.String, challenge: [Swift.String : Any], frames: [[Swift.String : Any]], attestationToken: Swift.String?) async throws -> [Swift.String : Any]
+  @objc deinit
+}
+public enum SignalCollector {
+  public struct LocationFix {
+    public let lat: Swift.Double
+    public let lng: Swift.Double
+    public let accuracyM: Swift.Double
+    public let source: Swift.String
+    public let time: Foundation.Date
+    public init(lat: Swift.Double, lng: Swift.Double, accuracyM: Swift.Double, source: Swift.String, time: Foundation.Date)
+  }
+  public static func collect(attestationToken: Swift.String? = nil, location: FacededupLiveness.SignalCollector.LocationFix? = nil, appVersion: Swift.String? = nil) -> [Swift.String : Any]
+}

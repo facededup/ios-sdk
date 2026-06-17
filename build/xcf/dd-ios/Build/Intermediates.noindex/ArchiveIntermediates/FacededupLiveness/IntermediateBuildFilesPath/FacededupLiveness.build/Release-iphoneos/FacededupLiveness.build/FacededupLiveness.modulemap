@@ -1,0 +1,4 @@
+module FacededupLiveness {
+header "FacededupLiveness-Swift.h"
+export *
+}
