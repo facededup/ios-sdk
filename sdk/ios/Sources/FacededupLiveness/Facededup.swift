@@ -10,6 +10,8 @@ public struct FacededupConfig {
     /// Demo HTTP Basic password (username is ignored server-side). Omit in
     /// production once per-tenant API keys / a session token replace the gate.
     public var password: String?
+    /// Per-tenant license key (fdk_…) — production replacement for the demo password.
+    public var licenseKey: String?
     public var subjectId: String?
     /// Start screen. Defaults to **"liveness"** — the SDK drops straight into
     /// face capture (no menu). Set "select" for the menu, or
@@ -37,6 +39,7 @@ public struct FacededupConfig {
 
     public init(baseURL: URL,
                 password: String? = nil,
+                licenseKey: String? = nil,
                 subjectId: String? = nil,
                 flow: String? = "liveness",
                 method: String? = nil,
@@ -49,6 +52,7 @@ public struct FacededupConfig {
                 attestationProvider: ((_ nonce: String) async -> String?)? = nil) {
         self.baseURL = baseURL
         self.password = password
+        self.licenseKey = licenseKey
         self.subjectId = subjectId
         self.flow = flow
         self.method = method
@@ -65,6 +69,7 @@ public struct FacededupConfig {
     func queryItems() -> [URLQueryItem] {
         var q: [URLQueryItem] = []
         if let v = flow, !v.isEmpty { q.append(URLQueryItem(name: "flow", value: v)) }
+        if let v = licenseKey, !v.isEmpty { q.append(URLQueryItem(name: "license", value: v)) }
         if let v = method, !v.isEmpty { q.append(URLQueryItem(name: "method", value: v)) }
         if let v = strictness, !v.isEmpty { q.append(URLQueryItem(name: "strictness", value: v)) }
         if let v = agentMode { q.append(URLQueryItem(name: "agent", value: v ? "1" : "0")) }
