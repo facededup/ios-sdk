@@ -32,6 +32,8 @@ public final class FacededupVerificationController: UIViewController,
     private var webView: WKWebView!
     private var finished = false
     private var offlineView: UIView?
+    private let detector = FacededupVisionDetector()
+    private let detectQueue = DispatchQueue(label: "ng.facededup.vision", qos: .userInitiated)
 
     public init(config: FacededupConfig, onFinish: ((FacededupResult) -> Void)? = nil) {
         self.config = config
@@ -49,6 +51,14 @@ public final class FacededupVerificationController: UIViewController,
         let proxy = WeakScriptMessageHandler(self)
         content.add(proxy, name: "facededup")        // result bridge (postToHost)
         content.add(proxy, name: "facededupAttest")  // attestation request bridge
+        content.add(proxy, name: "facededupDetect")  // hybrid: frame -> native Vision
+
+        // HYBRID DETECTION: tell the web flow to route on-device detection through
+        // native Apple Vision (reliable in WKWebView) instead of the WASM Worker.
+        // The page then ships frames to "facededupDetect" and reads results back from
+        // window.__facededupPose(). The camera/preview/capture stay in the WebView.
+        content.addUserScript(WKUserScript(source: "window.__FACEDEDUP_NATIVE_DETECT = true;",
+            injectionTime: .atDocumentStart, forMainFrameOnly: false))
 
         // The page is gated by HTTP Basic. The navigation auth handler covers the
         // document load, but the page's own fetch() API calls need the header too —
@@ -224,6 +234,22 @@ public final class FacededupVerificationController: UIViewController,
         case "facededupAttest":
             let nonce = (message.body as? String) ?? ""
             Task { await self.handleAttestation(nonce: nonce) }
+
+        case "facededupDetect":
+            guard let body = message.body as? [String: Any],
+                  let b64 = body["jpeg"] as? String else { return }
+            // Run Vision off the main thread, post the result back to the page.
+            detectQueue.async { [weak self] in
+                guard let self = self else { return }
+                let res = self.detector.detect(base64JPEG: b64)
+                guard let data = try? JSONSerialization.data(withJSONObject: res),
+                      let json = String(data: data, encoding: .utf8) else { return }
+                DispatchQueue.main.async {
+                    self.webView.evaluateJavaScript(
+                        "window.__facededupPose && window.__facededupPose(\(json))",
+                        completionHandler: nil)
+                }
+            }
 
         default:
             break
