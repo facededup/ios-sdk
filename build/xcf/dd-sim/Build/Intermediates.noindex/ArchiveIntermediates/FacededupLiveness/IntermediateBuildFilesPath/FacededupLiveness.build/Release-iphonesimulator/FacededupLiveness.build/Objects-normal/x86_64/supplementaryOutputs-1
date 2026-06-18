@@ -1,7 +1,7 @@
 {
-  "/tmp/b-ios/sdk/ios/Sources/FacededupLiveness/Facededup.swift" : {
-    "const-values" : "/tmp/b-ios/build/xcf/dd-sim/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphonesimulator/FacededupLiveness.build/Objects-normal/x86_64/FacededupLiveness-primary.swiftconstvalues",
-    "dependencies" : "/tmp/b-ios/build/xcf/dd-sim/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphonesimulator/FacededupLiveness.build/Objects-normal/x86_64/FacededupLiveness-primary.d",
-    "diagnostics" : "/tmp/b-ios/build/xcf/dd-sim/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphonesimulator/FacededupLiveness.build/Objects-normal/x86_64/FacededupLiveness-primary.dia"
+  "/tmp/isdk/sdk/ios/Sources/FacededupLiveness/Facededup.swift" : {
+    "const-values" : "/tmp/isdk/build/xcf/dd-sim/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphonesimulator/FacededupLiveness.build/Objects-normal/x86_64/FacededupLiveness-primary.swiftconstvalues",
+    "dependencies" : "/tmp/isdk/build/xcf/dd-sim/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphonesimulator/FacededupLiveness.build/Objects-normal/x86_64/FacededupLiveness-primary.d",
+    "diagnostics" : "/tmp/isdk/build/xcf/dd-sim/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphonesimulator/FacededupLiveness.build/Objects-normal/x86_64/FacededupLiveness-primary.dia"
   }
 }

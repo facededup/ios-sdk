@@ -6,7 +6,7 @@
 	<integer>12</integer>
 	<key>logs</key>
 	<dict>
-		<key>84EC1F21-8EBF-48FC-B731-ADF044D5C046</key>
+		<key>511A3C05-24C7-418E-87A4-1F7DB20D7ACD</key>
 		<dict>
 			<key>className</key>
 			<string>IDECommandLineBuildLog</string>
@@ -15,7 +15,7 @@
 			<key>domainType</key>
 			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
 			<key>fileName</key>
-			<string>84EC1F21-8EBF-48FC-B731-ADF044D5C046.xcactivitylog</string>
+			<string>511A3C05-24C7-418E-87A4-1F7DB20D7ACD.xcactivitylog</string>
 			<key>hasPrimaryLog</key>
 			<true/>
 			<key>primaryObservable</key>
@@ -32,21 +32,21 @@
 				<integer>0</integer>
 			</dict>
 			<key>schemeIdentifier-containerName</key>
-			<string>b-ios</string>
+			<string>isdk</string>
 			<key>schemeIdentifier-schemeName</key>
 			<string>FacededupLiveness</string>
 			<key>schemeIdentifier-sharedScheme</key>
 			<integer>1</integer>
 			<key>signature</key>
-			<string>Archiving workspace b-ios with scheme FacededupLiveness</string>
+			<string>Archiving workspace isdk with scheme FacededupLiveness</string>
 			<key>timeStartedRecording</key>
-			<real>803418012.94269001</real>
+			<real>803476356.64682996</real>
 			<key>timeStoppedRecording</key>
-			<real>803418016.70932603</real>
+			<real>803476359.86537504</real>
 			<key>title</key>
-			<string>Archiving workspace b-ios with scheme FacededupLiveness</string>
+			<string>Archiving workspace isdk with scheme FacededupLiveness</string>
 			<key>uniqueIdentifier</key>
-			<string>84EC1F21-8EBF-48FC-B731-ADF044D5C046</string>
+			<string>511A3C05-24C7-418E-87A4-1F7DB20D7ACD</string>
 		</dict>
 	</dict>
 </dict>

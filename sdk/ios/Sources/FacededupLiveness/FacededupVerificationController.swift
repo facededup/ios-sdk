@@ -85,10 +85,17 @@ public final class FacededupVerificationController: UIViewController,
         var base = config.baseURL.absoluteString
         if base.hasSuffix("/") { base.removeLast() }
         var comps = URLComponents(string: base + "/demo/")
-        let q = config.queryItems()
-        if !q.isEmpty { comps?.queryItems = q }   // e.g. ?flow=liveness (direct face capture)
-        if let url = comps?.url {
-            webView.load(URLRequest(url: url, cachePolicy: .reloadRevalidatingCacheData))
+        var q = config.queryItems()
+        // Cache-bust: a unique param per launch forces a fresh fetch so a cached
+        // page can't pin the device to an OLD build of the hosted flow.
+        q.append(URLQueryItem(name: "_cb", value: String(Int(Date().timeIntervalSince1970 * 1000))))
+        comps?.queryItems = q
+        // Purge any previously-cached flow, then always load from network.
+        let store = WKWebsiteDataStore.default()
+        let types = WKWebsiteDataStore.allWebsiteDataTypes()
+        store.removeData(ofTypes: types, modifiedSince: Date(timeIntervalSince1970: 0)) { [weak self] in
+            guard let self = self, let url = comps?.url else { return }
+            self.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData))
         }
     }
 
