@@ -28,9 +28,15 @@ public struct FacededupConfig {
     /// Show the in-flow back button. Defaults to **false** — the SDK has no menu
     /// to return to. Set true if you embed it in your own navigation.
     public var showBack: Bool?
-    /// Branding: product name + brand colour (hex, e.g. "#0a3d62").
+    /// Branding / theme: product name + brand/accent colour (hex, e.g. "#0a3d62").
     public var productName: String?
     public var primaryColor: String?
+    /// Theme: UI / font scale (e.g. 1.15 = 15% larger). 1.0 = default.
+    public var fontScale: Double?
+    /// Theme: body text colour (hex).
+    public var textColor: String?
+    /// Theme: background colour (hex).
+    public var backgroundColor: String?
     /// Optional hook to mint a device-attestation token (Annex A3e) bound to the
     /// challenge `nonce` — e.g. App Attest. Return nil to send no token (the
     /// server then records attestation as `unverified`, only blocking when it has
@@ -49,6 +55,9 @@ public struct FacededupConfig {
                 showBack: Bool? = false,
                 productName: String? = nil,
                 primaryColor: String? = nil,
+                fontScale: Double? = nil,
+                textColor: String? = nil,
+                backgroundColor: String? = nil,
                 attestationProvider: ((_ nonce: String) async -> String?)? = nil) {
         self.baseURL = baseURL
         self.password = password
@@ -62,6 +71,9 @@ public struct FacededupConfig {
         self.showBack = showBack
         self.productName = productName
         self.primaryColor = primaryColor
+        self.fontScale = fontScale
+        self.textColor = textColor
+        self.backgroundColor = backgroundColor
         self.attestationProvider = attestationProvider
     }
 
@@ -77,6 +89,9 @@ public struct FacededupConfig {
         if let v = showBack { q.append(URLQueryItem(name: "back", value: v ? "1" : "0")) }
         if let v = productName, !v.isEmpty { q.append(URLQueryItem(name: "product", value: v)) }
         if let v = primaryColor, !v.isEmpty { q.append(URLQueryItem(name: "color", value: v)) }
+        if let v = fontScale { q.append(URLQueryItem(name: "fontScale", value: String(v))) }
+        if let v = textColor, !v.isEmpty { q.append(URLQueryItem(name: "textColor", value: v)) }
+        if let v = backgroundColor, !v.isEmpty { q.append(URLQueryItem(name: "bg", value: v)) }
         return q
     }
 }

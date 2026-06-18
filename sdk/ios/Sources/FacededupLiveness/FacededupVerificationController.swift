@@ -86,16 +86,14 @@ public final class FacededupVerificationController: UIViewController,
         if base.hasSuffix("/") { base.removeLast() }
         var comps = URLComponents(string: base + "/demo/")
         var q = config.queryItems()
-        // Cache-bust: a unique param per launch forces a fresh fetch so a cached
-        // page can't pin the device to an OLD build of the hosted flow.
+        // Cache-bust: a unique param per launch forces a fresh fetch of the HTML so a
+        // cached page can't pin the device to an OLD build. We DON'T purge the data
+        // store anymore — heavy static assets (9MB WASM, model, fonts) stay cached for
+        // fast repeat launches; .useProtocolCachePolicy honours the HTML's no-store.
         q.append(URLQueryItem(name: "_cb", value: String(Int(Date().timeIntervalSince1970 * 1000))))
         comps?.queryItems = q
-        // Purge any previously-cached flow, then always load from network.
-        let store = WKWebsiteDataStore.default()
-        let types = WKWebsiteDataStore.allWebsiteDataTypes()
-        store.removeData(ofTypes: types, modifiedSince: Date(timeIntervalSince1970: 0)) { [weak self] in
-            guard let self = self, let url = comps?.url else { return }
-            self.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData))
+        if let url = comps?.url {
+            webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy))
         }
     }
 

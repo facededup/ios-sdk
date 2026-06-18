@@ -1322,6 +1322,339 @@
           },
           {
             "kind": "Var",
+            "name": "fontScale",
+            "printedName": "fontScale",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.Double?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Double",
+                    "printedName": "Swift.Double",
+                    "usr": "s:Sd"
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:17FacededupLiveness0A6ConfigV9fontScaleSdSgvp",
+            "mangledName": "$s17FacededupLiveness0A6ConfigV9fontScaleSdSgvp",
+            "moduleName": "FacededupLiveness",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "RawDocComment"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "Swift.Double?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Double",
+                        "printedName": "Swift.Double",
+                        "usr": "s:Sd"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV9fontScaleSdSgvg",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV9fontScaleSdSgvg",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "Swift.Double?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Double",
+                        "printedName": "Swift.Double",
+                        "usr": "s:Sd"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV9fontScaleSdSgvs",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV9fontScaleSdSgvs",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV9fontScaleSdSgvM",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV9fontScaleSdSgvM",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "textColor",
+            "printedName": "textColor",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.String?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:17FacededupLiveness0A6ConfigV9textColorSSSgvp",
+            "mangledName": "$s17FacededupLiveness0A6ConfigV9textColorSSSgvp",
+            "moduleName": "FacededupLiveness",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "RawDocComment"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "Swift.String?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV9textColorSSSgvg",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV9textColorSSSgvg",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "Swift.String?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV9textColorSSSgvs",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV9textColorSSSgvs",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV9textColorSSSgvM",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV9textColorSSSgvM",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "backgroundColor",
+            "printedName": "backgroundColor",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.String?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:17FacededupLiveness0A6ConfigV15backgroundColorSSSgvp",
+            "mangledName": "$s17FacededupLiveness0A6ConfigV15backgroundColorSSSgvp",
+            "moduleName": "FacededupLiveness",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "RawDocComment"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "Swift.String?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV15backgroundColorSSSgvg",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV15backgroundColorSSSgvg",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "Swift.String?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV15backgroundColorSSSgvs",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV15backgroundColorSSSgvs",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:17FacededupLiveness0A6ConfigV15backgroundColorSSSgvM",
+                "mangledName": "$s17FacededupLiveness0A6ConfigV15backgroundColorSSSgvM",
+                "moduleName": "FacededupLiveness",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
             "name": "attestationProvider",
             "printedName": "attestationProvider",
             "children": [
@@ -1497,7 +1830,7 @@
           {
             "kind": "Constructor",
             "name": "init",
-            "printedName": "init(baseURL:password:licenseKey:subjectId:flow:method:strictness:agentMode:showSettings:showBack:productName:primaryColor:attestationProvider:)",
+            "printedName": "init(baseURL:password:licenseKey:subjectId:flow:method:strictness:agentMode:showSettings:showBack:productName:primaryColor:fontScale:textColor:backgroundColor:attestationProvider:)",
             "children": [
               {
                 "kind": "TypeNominal",
@@ -1679,6 +2012,51 @@
               {
                 "kind": "TypeNominal",
                 "name": "Optional",
+                "printedName": "Swift.Double?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Double",
+                    "printedName": "Swift.Double",
+                    "usr": "s:Sd"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.String?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.String?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "hasDefaultArg": true,
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
                 "printedName": "((Swift.String) async -> Swift.String?)?",
                 "children": [
                   {
@@ -1714,8 +2092,8 @@
               }
             ],
             "declKind": "Constructor",
-            "usr": "s:17FacededupLiveness0A6ConfigV7baseURL8password10licenseKey9subjectId4flow6method10strictness9agentMode12showSettings0P4Back11productName12primaryColor19attestationProviderAC10Foundation0E0V_SSSgA5TSbSgA2u3TSSYacSgtcfc",
-            "mangledName": "$s17FacededupLiveness0A6ConfigV7baseURL8password10licenseKey9subjectId4flow6method10strictness9agentMode12showSettings0P4Back11productName12primaryColor19attestationProviderAC10Foundation0E0V_SSSgA5TSbSgA2u3TSSYacSgtcfc",
+            "usr": "s:17FacededupLiveness0A6ConfigV7baseURL8password10licenseKey9subjectId4flow6method10strictness9agentMode12showSettings0P4Back11productName12primaryColor9fontScale04textV0010backgroundV019attestationProviderAC10Foundation0E0V_SSSgA5WSbSgA2x2WSdSgA3WSSYacSgtcfc",
+            "mangledName": "$s17FacededupLiveness0A6ConfigV7baseURL8password10licenseKey9subjectId4flow6method10strictness9agentMode12showSettings0P4Back11productName12primaryColor9fontScale04textV0010backgroundV019attestationProviderAC10Foundation0E0V_SSSgA5WSbSgA2x2WSdSgA3WSSYacSgtcfc",
             "moduleName": "FacededupLiveness",
             "declAttributes": [
               "AccessControl"
@@ -3898,14 +4276,14 @@
     {
       "filePath": "\/tmp\/isdk\/sdk\/ios\/Sources\/FacededupLiveness\/Facededup.swift",
       "kind": "StringLiteral",
-      "offset": 2268,
+      "offset": 2542,
       "length": 10,
       "value": "\"liveness\""
     },
     {
       "filePath": "\/tmp\/isdk\/sdk\/ios\/Sources\/FacededupLiveness\/Facededup.swift",
       "kind": "BooleanLiteral",
-      "offset": 2479,
+      "offset": 2753,
       "length": 5,
       "value": "false"
     },

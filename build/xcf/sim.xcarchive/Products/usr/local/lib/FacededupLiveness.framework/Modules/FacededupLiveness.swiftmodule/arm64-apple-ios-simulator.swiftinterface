@@ -23,8 +23,11 @@ public struct FacededupConfig {
   public var showBack: Swift.Bool?
   public var productName: Swift.String?
   public var primaryColor: Swift.String?
+  public var fontScale: Swift.Double?
+  public var textColor: Swift.String?
+  public var backgroundColor: Swift.String?
   public var attestationProvider: ((_ nonce: Swift.String) async -> Swift.String?)?
-  public init(baseURL: Foundation.URL, password: Swift.String? = nil, licenseKey: Swift.String? = nil, subjectId: Swift.String? = nil, flow: Swift.String? = "liveness", method: Swift.String? = nil, strictness: Swift.String? = nil, agentMode: Swift.Bool? = nil, showSettings: Swift.Bool? = nil, showBack: Swift.Bool? = false, productName: Swift.String? = nil, primaryColor: Swift.String? = nil, attestationProvider: ((_ nonce: Swift.String) async -> Swift.String?)? = nil)
+  public init(baseURL: Foundation.URL, password: Swift.String? = nil, licenseKey: Swift.String? = nil, subjectId: Swift.String? = nil, flow: Swift.String? = "liveness", method: Swift.String? = nil, strictness: Swift.String? = nil, agentMode: Swift.Bool? = nil, showSettings: Swift.Bool? = nil, showBack: Swift.Bool? = false, productName: Swift.String? = nil, primaryColor: Swift.String? = nil, fontScale: Swift.Double? = nil, textColor: Swift.String? = nil, backgroundColor: Swift.String? = nil, attestationProvider: ((_ nonce: Swift.String) async -> Swift.String?)? = nil)
 }
 public struct FacededupResult {
   public let type: Swift.String
