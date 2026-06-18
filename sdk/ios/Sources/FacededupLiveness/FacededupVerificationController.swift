@@ -52,6 +52,7 @@ public final class FacededupVerificationController: UIViewController,
         content.add(proxy, name: "facededup")        // result bridge (postToHost)
         content.add(proxy, name: "facededupAttest")  // attestation request bridge
         content.add(proxy, name: "facededupDetect")  // hybrid: frame -> native Vision
+        content.add(proxy, name: "facededupHaptic")  // haptic cue on action success (iOS has no navigator.vibrate)
 
         // HYBRID DETECTION: tell the web flow to route on-device detection through
         // native Apple Vision (reliable in WKWebView) instead of the WASM Worker.
@@ -234,6 +235,18 @@ public final class FacededupVerificationController: UIViewController,
         case "facededupAttest":
             let nonce = (message.body as? String) ?? ""
             Task { await self.handleAttestation(nonce: nonce) }
+
+        case "facededupHaptic":
+            // iOS WebKit has no navigator.vibrate, so the web flow asks us to buzz.
+            let kind = (message.body as? String) ?? "tick"
+            DispatchQueue.main.async {
+                if kind == "success" {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                } else {
+                    let g = UIImpactFeedbackGenerator(style: .medium)
+                    g.prepare(); g.impactOccurred()
+                }
+            }
 
         case "facededupDetect":
             guard let body = message.body as? [String: Any],

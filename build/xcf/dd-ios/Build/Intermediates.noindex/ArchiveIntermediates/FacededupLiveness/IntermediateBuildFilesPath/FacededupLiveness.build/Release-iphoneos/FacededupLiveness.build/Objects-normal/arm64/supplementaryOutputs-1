@@ -1,7 +1,0 @@
-{
-  "/tmp/isdk/sdk/ios/Sources/FacededupLiveness/Facededup.swift" : {
-    "const-values" : "/tmp/isdk/build/xcf/dd-ios/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphoneos/FacededupLiveness.build/Objects-normal/arm64/FacededupLiveness-primary.swiftconstvalues",
-    "dependencies" : "/tmp/isdk/build/xcf/dd-ios/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphoneos/FacededupLiveness.build/Objects-normal/arm64/FacededupLiveness-primary.d",
-    "diagnostics" : "/tmp/isdk/build/xcf/dd-ios/Build/Intermediates.noindex/ArchiveIntermediates/FacededupLiveness/IntermediateBuildFilesPath/FacededupLiveness.build/Release-iphoneos/FacededupLiveness.build/Objects-normal/arm64/FacededupLiveness-primary.dia"
-  }
-}
