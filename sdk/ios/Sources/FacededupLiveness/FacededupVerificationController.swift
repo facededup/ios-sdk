@@ -151,13 +151,42 @@ public final class FacededupVerificationController: UIViewController,
         // BASE URL, so the page's origin stays the API host (secure context for
         // getUserMedia, same-origin /v1 calls). Only /v1 API calls go out; offline they
         // fail and the capture is queued (facededupQueueOffline -> /v1/offline/submit).
-        if let htmlURL = Bundle.module.url(forResource: "flow-offline", withExtension: "html"),
-           let html = try? String(contentsOf: htmlURL, encoding: .utf8) {
+        if let html = Self.offlineFlowHTML() {
             webView.loadHTMLString(html, baseURL: pageURL)
         } else if let url = pageURL {
-            // Fallback only if the bundled copy is somehow missing.
+            // Bundled copy not found (e.g. a drag-in integration that didn't embed the
+            // resource bundle) — fall back to loading the hosted flow over the network.
             webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy))
         }
+    }
+
+    /// Read the self-contained offline flow from the resource bundle WITHOUT touching
+    /// `Bundle.module` — that accessor `fatalError()`s if it can't locate the bundle, and
+    /// in some binary-xcframework integrations the bundle isn't where it looks, which
+    /// would crash the app. We search the candidate locations ourselves and return nil
+    /// (caller falls back to the network) instead of crashing.
+    static func offlineFlowHTML() -> String? {
+        let name = "flow-offline", ext = "html"
+        let resourceBundleName = "FacededupLiveness_FacededupLiveness"
+        var candidates: [Bundle] = [Bundle(for: FacededupVerificationController.self), .main]
+        for host in [Bundle(for: FacededupVerificationController.self), Bundle.main] {
+            // SPM ships resources in a nested `<Module>_<Target>.bundle`; find it next to
+            // the framework binary or in the app's resources.
+            let urls = [
+                host.url(forResource: resourceBundleName, withExtension: "bundle"),
+                host.resourceURL?.appendingPathComponent(resourceBundleName + ".bundle"),
+            ].compactMap { $0 }
+            for u in urls {
+                if let nested = Bundle(url: u) { candidates.append(nested) }
+            }
+        }
+        for bundle in candidates {
+            if let u = bundle.url(forResource: name, withExtension: ext),
+               let html = try? String(contentsOf: u, encoding: .utf8) {
+                return html
+            }
+        }
+        return nil
     }
 
     public override func viewDidDisappear(_ animated: Bool) {
