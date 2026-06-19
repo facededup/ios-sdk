@@ -54,6 +54,7 @@ public final class FacededupVerificationController: UIViewController,
         content.add(proxy, name: "facededupAttest")  // attestation request bridge
         content.add(proxy, name: "facededupDetect")  // hybrid: frame -> native Vision
         content.add(proxy, name: "facededupHaptic")  // haptic cue on action success (iOS has no navigator.vibrate)
+        content.add(proxy, name: "facededupQueueOffline")  // offline capture -> deferred /v1/offline/submit
 
         // HYBRID DETECTION: tell the web flow to route on-device detection through
         // native Apple Vision (reliable in WKWebView) instead of the WASM Worker.
@@ -90,6 +91,10 @@ public final class FacededupVerificationController: UIViewController,
 
     public override func viewDidLoad() {
         super.viewDidLoad()
+        // Drain any captures queued offline in a previous session, and keep submitting
+        // whenever connectivity returns while this controller is alive.
+        FacededupOfflineStore.shared.startMonitoring()
+        FacededupOfflineStore.shared.flush()
         primeCaptureThenLoad()
     }
 
@@ -139,7 +144,18 @@ public final class FacededupVerificationController: UIViewController,
         // fast repeat launches; .useProtocolCachePolicy honours the HTML's no-store.
         q.append(URLQueryItem(name: "_cb", value: String(Int(Date().timeIntervalSince1970 * 1000))))
         comps?.queryItems = q
-        if let url = comps?.url {
+        let pageURL = comps?.url
+
+        // Load the verification UI from the SELF-CONTAINED bundled copy (no network) so
+        // it opens even in airplane mode — no "no connection" screen. `pageURL` is the
+        // BASE URL, so the page's origin stays the API host (secure context for
+        // getUserMedia, same-origin /v1 calls). Only /v1 API calls go out; offline they
+        // fail and the capture is queued (facededupQueueOffline -> /v1/offline/submit).
+        if let htmlURL = Bundle.module.url(forResource: "flow-offline", withExtension: "html"),
+           let html = try? String(contentsOf: htmlURL, encoding: .utf8) {
+            webView.loadHTMLString(html, baseURL: pageURL)
+        } else if let url = pageURL {
+            // Fallback only if the bundled copy is somehow missing.
             webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy))
         }
     }
@@ -283,6 +299,15 @@ public final class FacededupVerificationController: UIViewController,
                     g.prepare(); g.impactOccurred()
                 }
             }
+
+        case "facededupQueueOffline":
+            // Device is offline: persist the capture and submit it to /v1/offline/submit
+            // when connectivity returns. The verdict is delivered to the tenant's webhook.
+            guard let payload = message.body as? String else { return }
+            FacededupOfflineStore.shared.enqueue(
+                payload: payload,
+                base: config.baseURL.absoluteString,
+                license: config.licenseKey ?? "")
 
         case "facededupDetect":
             guard let body = message.body as? [String: Any],
