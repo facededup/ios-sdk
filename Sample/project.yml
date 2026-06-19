@@ -1,0 +1,39 @@
+name: FacededupSample
+options:
+  bundleIdPrefix: ai.facededup
+  deploymentTarget:
+    iOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  FacededupLiveness:
+    # The SDK package at the repo root (one level up from Sample/).
+    path: ".."
+
+targets:
+  FacededupSample:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Facededup Demo
+        UILaunchStoryboardName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # The flow needs the camera; the read-a-number / voice challenge needs the mic.
+        # Without these usage strings iOS won't grant WKWebView capture.
+        NSCameraUsageDescription: "Used to verify it's really you (face liveness)."
+        NSMicrophoneUsageDescription: "Used for the read-a-number voice check during verification."
+    dependencies:
+      - package: FacededupLiveness
+        product: FacededupLiveness
+    settings:
+      base:
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: "1.0.7"
+        CURRENT_PROJECT_VERSION: "107"
+        PRODUCT_BUNDLE_IDENTIFIER: ai.facededup.sample

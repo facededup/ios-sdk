@@ -1,3 +1,7 @@
 
 # Xcode build output (xcframework is published to S3, not git)
 build/
+Sample/dd/
+**/xcuserdata/
+.DS_Store
+build/
