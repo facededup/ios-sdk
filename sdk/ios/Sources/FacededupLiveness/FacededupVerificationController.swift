@@ -33,6 +33,8 @@ public final class FacededupVerificationController: UIViewController,
     private var webView: WKWebView!
     private var finished = false
     private var offlineView: UIView?
+    private var pageURL: URL?               // the hosted /demo/ URL we load over the network
+    private var triedBundleFallback = false // did we already fall back to the bundled flow?
     private let detector = FacededupVisionDetector()
     private let detectQueue = DispatchQueue(label: "ng.facededup.vision", qos: .userInitiated)
 
@@ -144,21 +146,28 @@ public final class FacededupVerificationController: UIViewController,
         // fast repeat launches; .useProtocolCachePolicy honours the HTML's no-store.
         q.append(URLQueryItem(name: "_cb", value: String(Int(Date().timeIntervalSince1970 * 1000))))
         comps?.queryItems = q
-        let pageURL = comps?.url
+        pageURL = comps?.url
 
-        // Load the verification UI from the SELF-CONTAINED bundled copy (no network) so
-        // it opens even in airplane mode — no "no connection" screen. `pageURL` is the
-        // BASE URL, so the page's origin stays the API host (secure context for
-        // getUserMedia, same-origin /v1 calls). Only /v1 API calls go out; offline they
-        // fail and the capture is queued (facededupQueueOffline -> /v1/offline/submit).
-        // The offline flow is COMPILED IN (OfflineFlowHTML.swift, base64) so it's always
-        // present — no resource bundle, no Bundle.module (which crashed). If decoding ever
-        // fails, fall back to loading the hosted flow over the network.
-        if let html = FacededupOfflineFlow.html {
-            webView.loadHTMLString(html, baseURL: pageURL)
-        } else if let url = pageURL {
-            webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy))
+        // Load the hosted flow over the NETWORK. This is REQUIRED for the camera/mic:
+        // WKWebView only grants getUserMedia to content served from a real page origin —
+        // content injected via loadHTMLString is denied with "The object is in an invalid
+        // state". If the network load fails (offline), didFailProvisionalNavigation falls
+        // back to the self-contained bundled flow so the flow still opens + queues.
+        triedBundleFallback = false
+        if let url = pageURL {
+            webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+        } else {
+            loadBundledFallback()
         }
+    }
+
+    /// Offline fallback: load the compiled-in self-contained flow. Capture support is
+    /// limited here (WKWebView restricts getUserMedia for loadHTMLString content), but
+    /// the flow opens and offline captures queue for deferred submit.
+    private func loadBundledFallback() {
+        guard !triedBundleFallback, let html = FacededupOfflineFlow.html else { return }
+        triedBundleFallback = true
+        webView.loadHTMLString(html, baseURL: pageURL)
     }
 
     public override func viewDidDisappear(_ animated: Bool) {
@@ -213,6 +222,13 @@ public final class FacededupVerificationController: UIViewController,
     private func showOfflineIfNetworkError(_ error: Error) {
         let code = (error as NSError).code
         if code == NSURLErrorCancelled { return }          // navigation superseded, not a failure
+        // Network load failed (offline / server unreachable): fall back to the
+        // self-contained bundled flow so the user can still capture (queued for later),
+        // instead of a dead-end "no connection" screen.
+        if !triedBundleFallback, FacededupOfflineFlow.html != nil {
+            loadBundledFallback()
+            return
+        }
         guard offlineView == nil else { return }
 
         let container = UIView()
