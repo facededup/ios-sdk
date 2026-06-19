@@ -1,6 +1,7 @@
 #if canImport(UIKit) && canImport(WebKit)
 import UIKit
 import WebKit
+import AVFoundation
 
 /// Delegate for the drop-in flow. `onFinish` closure is an alternative.
 public protocol FacededupDelegate: AnyObject {
@@ -89,7 +90,42 @@ public final class FacededupVerificationController: UIViewController,
 
     public override func viewDidLoad() {
         super.viewDidLoad()
-        loadFlow()
+        primeCaptureThenLoad()
+    }
+
+    /// Prime camera + mic permission BEFORE the WebView calls getUserMedia.
+    ///
+    /// iOS only lets WKWebView capture audio/video if the app already holds (or can
+    /// prompt for) the permission — which REQUIRES a usage string in the *host app's*
+    /// Info.plist: `NSCameraUsageDescription` for video, `NSMicrophoneUsageDescription`
+    /// for the mic. The read-a-number / voice challenge does `getUserMedia({audio:true})`,
+    /// so without the microphone key it silently fails to record.
+    ///
+    /// We must NOT call `AVCaptureDevice.requestAccess` for a media type whose usage
+    /// string is absent — iOS hard-crashes (TCC) in that case. So we guard on the key:
+    /// prime when present, and log a loud warning when the mic key is missing so the
+    /// integrator knows exactly why voice capture doesn't work.
+    private func primeCaptureThenLoad() {
+        func hasKey(_ k: String) -> Bool {
+            (Bundle.main.object(forInfoDictionaryKey: k) as? String)?.isEmpty == false
+        }
+        // Best-effort audio session so WebKit can record alongside playback (TTS prompts).
+        if hasKey("NSMicrophoneUsageDescription") {
+            try? AVAudioSession.sharedInstance().setCategory(.playAndRecord,
+                mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try? AVAudioSession.sharedInstance().setActive(true)
+        } else {
+            NSLog("[Facededup] ⚠️ NSMicrophoneUsageDescription is missing from Info.plist — "
+                + "the read-a-number / voice challenge cannot record audio. Add it to enable voice.")
+        }
+        let group = DispatchGroup()
+        if hasKey("NSCameraUsageDescription") {
+            group.enter(); AVCaptureDevice.requestAccess(for: .video) { _ in group.leave() }
+        }
+        if hasKey("NSMicrophoneUsageDescription") {
+            group.enter(); AVCaptureDevice.requestAccess(for: .audio) { _ in group.leave() }
+        }
+        group.notify(queue: .main) { [weak self] in self?.loadFlow() }
     }
 
     private func loadFlow() {
