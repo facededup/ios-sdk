@@ -81,6 +81,29 @@ final class FacededupVisionDetector {
             out["noseOff"] = 0.0
         }
 
+        // GEOMETRIC PITCH (look up/down). Vision's `face.pitch` is coarse and frequently
+        // 0/unpopulated, so up/down never registered. Derive pitch from FORESHORTENING
+        // instead — the vertical split between eye→nose and nose→mouth shifts as the head
+        // pitches (same landmark approach as noseOff for turns). Output ~degrees; the page
+        // judges it as a DELTA from neutral, so only sign + scale matter. Sign matches
+        // MediaPipe (look-UP negative, look-DOWN positive) — flip pitchSign if inverted.
+        func centroidY(_ r: VNFaceLandmarkRegion2D?) -> Double? {
+            guard let pts = r?.normalizedPoints, !pts.isEmpty else { return nil }
+            return Double(pts.reduce(0) { $0 + $1.y } / CGFloat(pts.count))   // bottom-left origin (y up)
+        }
+        if let ly = centroidY(lm.leftEye), let ry = centroidY(lm.rightEye),
+           let ny = centroidY(lm.nose) ?? centroidY(lm.noseCrest),
+           let my = centroidY(lm.outerLips) ?? centroidY(lm.innerLips) {
+            let eyeMidY = (ly + ry) / 2.0
+            let eyeToNose = eyeMidY - ny          // eyes above nose above mouth (y up)
+            let noseToMouth = ny - my
+            let denom = eyeToNose + noseToMouth
+            if denom > 1e-4 {
+                let ratio = eyeToNose / denom     // ~0.5 neutral; look-down raises it, look-up lowers it
+                out["pitch"] = Self.pitchSign * (ratio * 150.0)
+            }
+        }
+
         // Blink: eye-aspect-ratio (height/width) → blink score (1 = closed). Open ≈ 0.28.
         func blink(_ eye: VNFaceLandmarkRegion2D?) -> Double {
             guard let pts = eye?.normalizedPoints, pts.count >= 4 else { return 0 }

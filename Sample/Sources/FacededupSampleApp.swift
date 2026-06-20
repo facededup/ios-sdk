@@ -15,7 +15,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            Text("Facededup Demo 1.0.14")
+            Text("Facededup Demo 1.0.15")
                 .font(.title2).bold()
             Text(status)
                 .multilineTextAlignment(.center)
