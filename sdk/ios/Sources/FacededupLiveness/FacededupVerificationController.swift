@@ -2,6 +2,7 @@
 import UIKit
 import WebKit
 import AVFoundation
+import CoreMotion
 
 /// Delegate for the drop-in flow. `onFinish` closure is an alternative.
 public protocol FacededupDelegate: AnyObject {
@@ -91,13 +92,30 @@ public final class FacededupVerificationController: UIViewController,
         view = wv
     }
 
+    // Phone-tilt feed: the liveness flow rejects look up/down done by tilting the PHONE
+    // instead of the head. We push the device pitch (CoreMotion) into the page via
+    // window.__facededupPhone(deg) — reliable inside WKWebView, unlike web DeviceOrientation.
+    private let motion = CMMotionManager()
+
     public override func viewDidLoad() {
         super.viewDidLoad()
         // Drain any captures queued offline in a previous session, and keep submitting
         // whenever connectivity returns while this controller is alive.
         FacededupOfflineStore.shared.startMonitoring()
         FacededupOfflineStore.shared.flush()
+        startMotionFeed()
         primeCaptureThenLoad()
+    }
+
+    private func startMotionFeed() {
+        guard motion.isDeviceMotionAvailable else { return }
+        motion.deviceMotionUpdateInterval = 1.0 / 20.0   // ~20 Hz
+        motion.startDeviceMotionUpdates(to: .main) { [weak self] m, _ in
+            guard let self = self, let m = m else { return }
+            let pitchDeg = m.attitude.pitch * 180.0 / .pi   // radians -> degrees
+            self.webView.evaluateJavaScript(
+                "window.__facededupPhone && window.__facededupPhone(\(pitchDeg))", completionHandler: nil)
+        }
     }
 
     /// Prime camera + mic permission BEFORE the WebView calls getUserMedia.
@@ -172,6 +190,7 @@ public final class FacededupVerificationController: UIViewController,
 
     public override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        if motion.isDeviceMotionActive { motion.stopDeviceMotionUpdates() }
         if !finished && (isBeingDismissed || isMovingFromParent) {
             finished = true
             delegate?.facededupDidCancel(self)
