@@ -15,7 +15,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            Text("Facededup Demo 1.0.16")
+            Text("Facededup Demo 1.1.0")
                 .font(.title2).bold()
             Text(status)
                 .multilineTextAlignment(.center)
@@ -64,9 +64,9 @@ struct FacededupView: UIViewControllerRepresentable {
             baseURL: URL(string: "https://facededup.ai")!,
             licenseKey: "fdk_40cT6S_lWEpiCjd22ls8bLsL_YQnZNzq",
             subjectId: "demo-user-1",
-            // Mirror the branded field integration (green accent, black background).
-            primaryColor: "#1E9C69",
-            backgroundColor: "#000000"
+            // Grouped, typed branding via the new FacededupTheme API.
+            theme: FacededupTheme(primaryColor: "#1E9C69", backgroundColor: "#000000",
+                                  textColor: "#FFFFFF", productName: "Facededup")
         )
         // Use the delegate only (it reports both finish AND cancel); passing the
         // onFinish closure too would double-fire on success.

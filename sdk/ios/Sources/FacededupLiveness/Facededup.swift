@@ -37,6 +37,8 @@ public struct FacededupConfig {
     public var textColor: String?
     /// Theme: background colour (hex).
     public var backgroundColor: String?
+    /// Grouped, typed branding/theme. Takes precedence over the flat fields above.
+    public var theme: FacededupTheme?
     /// Optional hook to mint a device-attestation token (Annex A3e) bound to the
     /// challenge `nonce` — e.g. App Attest. Return nil to send no token (the
     /// server then records attestation as `unverified`, only blocking when it has
@@ -58,6 +60,7 @@ public struct FacededupConfig {
                 fontScale: Double? = nil,
                 textColor: String? = nil,
                 backgroundColor: String? = nil,
+                theme: FacededupTheme? = nil,
                 attestationProvider: ((_ nonce: String) async -> String?)? = nil) {
         self.baseURL = baseURL
         self.password = password
@@ -74,6 +77,7 @@ public struct FacededupConfig {
         self.fontScale = fontScale
         self.textColor = textColor
         self.backgroundColor = backgroundColor
+        self.theme = theme
         self.attestationProvider = attestationProvider
     }
 
@@ -87,12 +91,49 @@ public struct FacededupConfig {
         if let v = agentMode { q.append(URLQueryItem(name: "agent", value: v ? "1" : "0")) }
         if let v = showSettings { q.append(URLQueryItem(name: "settings", value: v ? "1" : "0")) }
         if let v = showBack { q.append(URLQueryItem(name: "back", value: v ? "1" : "0")) }
-        if let v = productName, !v.isEmpty { q.append(URLQueryItem(name: "product", value: v)) }
-        if let v = primaryColor, !v.isEmpty { q.append(URLQueryItem(name: "color", value: v)) }
-        if let v = fontScale { q.append(URLQueryItem(name: "fontScale", value: String(v))) }
-        if let v = textColor, !v.isEmpty { q.append(URLQueryItem(name: "textColor", value: v)) }
-        if let v = backgroundColor, !v.isEmpty { q.append(URLQueryItem(name: "bg", value: v)) }
+        // theme (if supplied) wins over the legacy flat fields.
+        let product = theme?.productName ?? productName
+        let color = theme?.primaryColor ?? primaryColor
+        let fScale = theme?.fontScale ?? fontScale
+        let text = theme?.textColor ?? textColor
+        let bg = theme?.backgroundColor ?? backgroundColor
+        if let v = product, !v.isEmpty { q.append(URLQueryItem(name: "product", value: v)) }
+        if let v = color, !v.isEmpty { q.append(URLQueryItem(name: "color", value: v)) }
+        if let v = fScale { q.append(URLQueryItem(name: "fontScale", value: String(v))) }
+        if let v = text, !v.isEmpty { q.append(URLQueryItem(name: "textColor", value: v)) }
+        if let v = bg, !v.isEmpty { q.append(URLQueryItem(name: "bg", value: v)) }
         return q
+    }
+}
+
+/// Branding/theme for the verification UI — group your look-and-feel in one typed value:
+///
+/// ```swift
+/// FacededupConfig(
+///   baseURL: URL(string: "https://facededup.ai")!, licenseKey: "fdk_…",
+///   theme: FacededupTheme(primaryColor: "#1E9C69", backgroundColor: "#000000",
+///                         textColor: "#FFFFFF", productName: "Acme"))
+/// ```
+/// All fields optional; hex colours like `#1E9C69`. `fontScale` 1.0 = default (1.15 = +15%).
+public struct FacededupTheme {
+    /// Brand / accent colour (buttons, progress) — hex, e.g. "#1E9C69".
+    public var primaryColor: String?
+    /// Background colour — hex.
+    public var backgroundColor: String?
+    /// Body text colour — hex.
+    public var textColor: String?
+    /// UI / font scale (1.0 = default, 1.15 = 15% larger).
+    public var fontScale: Double?
+    /// Product name shown in the flow's branding.
+    public var productName: String?
+
+    public init(primaryColor: String? = nil, backgroundColor: String? = nil,
+                textColor: String? = nil, fontScale: Double? = nil, productName: String? = nil) {
+        self.primaryColor = primaryColor
+        self.backgroundColor = backgroundColor
+        self.textColor = textColor
+        self.fontScale = fontScale
+        self.productName = productName
     }
 }
 
