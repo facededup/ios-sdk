@@ -1,8 +1,9 @@
-#if canImport(UIKit) && canImport(WebKit)
+#if canImport(UIKit)
 import UIKit
-import WebKit
 import AVFoundation
-import CoreMotion
+import Vision
+import CoreImage
+import CoreVideo
 
 /// Delegate for the drop-in flow. `onFinish` closure is an alternative.
 public protocol FacededupDelegate: AnyObject {
@@ -14,30 +15,39 @@ public extension FacededupDelegate {
     func facededupDidCancel(_ controller: FacededupVerificationController) {}
 }
 
-/// Drop-in verification UI: hosts the hosted Facededup flow in a managed `WKWebView`,
-/// grants camera/mic to the page, supplies the demo HTTP Basic password, runs device
-/// attestation on request, and reports a typed ``FacededupResult``.
+/// NATIVE verification UI (2.0) — AVFoundation camera + Vision face detection drive an
+/// active-liveness challenge ([ActiveLivenessTask]); proving frames submit to the
+/// Facededup backend and a typed ``FacededupResult`` is reported. Replaces the 1.x
+/// WKWebView host (no WebView, no getUserMedia, no offline-page bundling).
 ///
 /// ```swift
 /// let vc = FacededupVerificationController(config: .init(
-///     baseURL: URL(string: "https://…")!, password: "…", subjectId: "user-123")) { result in
-///     if result.passed { /* verified */ }
-/// }
+///     baseURL: URL(string: "https://facededup.ai")!, licenseKey: "fdk_…", subjectId: "u1"))
+/// vc.delegate = self
 /// present(vc, animated: true)
 /// ```
 public final class FacededupVerificationController: UIViewController,
-        WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
+        AVCaptureVideoDataOutputSampleBufferDelegate {
 
     private let config: FacededupConfig
     public weak var delegate: FacededupDelegate?
     private let onFinish: ((FacededupResult) -> Void)?
-    private var webView: WKWebView!
     private var finished = false
-    private var offlineView: UIView?
-    private var pageURL: URL?               // the hosted /demo/ URL we load over the network
-    private var triedBundleFallback = false // did we already fall back to the bundled flow?
+
+    private let session = AVCaptureSession()
     private let detector = FacededupVisionDetector()
-    private let detectQueue = DispatchQueue(label: "ng.facededup.vision", qos: .userInitiated)
+    private let camQueue = DispatchQueue(label: "ng.facededup.camera", qos: .userInitiated)
+    private let ciContext = CIContext(options: nil)
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var overlay: OvalOverlayView!
+    private let titleLabel = UILabel()
+    private let hintLabel = UILabel()
+
+    private lazy var task = ActiveLivenessTask(actions: [])
+    private var portrait: String?
+    private var frames: [NativeLivenessSubmit.Frame] = []
+    private var capturing = true
+    private var lastAnalyze = Date.distantPast
 
     public init(config: FacededupConfig, onFinish: ((FacededupResult) -> Void)? = nil) {
         self.config = config
@@ -48,353 +58,180 @@ public final class FacededupVerificationController: UIViewController,
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    public override func loadView() {
-        let content = WKUserContentController()
-        // Weak proxy so the WebView -> content controller -> handler chain doesn't
-        // retain this view controller (otherwise it leaks after dismissal).
-        let proxy = WeakScriptMessageHandler(self)
-        content.add(proxy, name: "facededup")        // result bridge (postToHost)
-        content.add(proxy, name: "facededupAttest")  // attestation request bridge
-        content.add(proxy, name: "facededupDetect")  // hybrid: frame -> native Vision
-        content.add(proxy, name: "facededupHaptic")  // haptic cue on action success (iOS has no navigator.vibrate)
-        content.add(proxy, name: "facededupQueueOffline")  // offline capture -> deferred /v1/offline/submit
-
-        // HYBRID DETECTION: tell the web flow to route on-device detection through
-        // native Apple Vision (reliable in WKWebView) instead of the WASM Worker.
-        // The page then ships frames to "facededupDetect" and reads results back from
-        // window.__facededupPose(). The camera/preview/capture stay in the WebView.
-        content.addUserScript(WKUserScript(source: "window.__FACEDEDUP_NATIVE_DETECT = true;",
-            injectionTime: .atDocumentStart, forMainFrameOnly: false))
-
-        // The page is gated by HTTP Basic. The navigation auth handler covers the
-        // document load, but the page's own fetch() API calls need the header too —
-        // inject window.__API_AUTH at document start (parity with Android) so every
-        // /v1 call authenticates. Without this, verify/enroll calls 401 and the
-        // flow "fails to pick the face".
-        if let pw = config.password, !pw.isEmpty {
-            let b64 = Data("facededup:\(pw)".utf8).base64EncodedString()  // username ignored server-side
-            let js = "window.__API_AUTH = 'Basic \(b64)';"
-            content.addUserScript(WKUserScript(source: js,
-                injectionTime: .atDocumentStart, forMainFrameOnly: false))
-        }
-
-        let cfg = WKWebViewConfiguration()
-        cfg.userContentController = content
-        cfg.allowsInlineMediaPlayback = true                    // no fullscreen takeover
-        cfg.mediaTypesRequiringUserActionForPlayback = []       // camera can auto-start
-
-        let wv = WKWebView(frame: .zero, configuration: cfg)
-        wv.uiDelegate = self
-        wv.navigationDelegate = self
-        wv.scrollView.bounces = false
-        wv.allowsBackForwardNavigationGestures = false
-        webView = wv
-        view = wv
-    }
-
-    // Phone-tilt feed: the liveness flow rejects look up/down done by tilting the PHONE
-    // instead of the head. We push the device pitch (CoreMotion) into the page via
-    // window.__facededupPhone(deg) — reliable inside WKWebView, unlike web DeviceOrientation.
-    private let motion = CMMotionManager()
-
     public override func viewDidLoad() {
         super.viewDidLoad()
-        // Drain any captures queued offline in a previous session, and keep submitting
-        // whenever connectivity returns while this controller is alive.
+        view.backgroundColor = color(config.theme?.backgroundColor ?? config.backgroundColor) ?? .black
+        buildUI()
         FacededupOfflineStore.shared.startMonitoring()
-        FacededupOfflineStore.shared.flush()
-        startMotionFeed()
-        primeCaptureThenLoad()
-    }
-
-    private func startMotionFeed() {
-        guard motion.isDeviceMotionAvailable else { return }
-        motion.deviceMotionUpdateInterval = 1.0 / 20.0   // ~20 Hz
-        motion.startDeviceMotionUpdates(to: .main) { [weak self] m, _ in
-            guard let self = self, let m = m else { return }
-            let pitchDeg = m.attitude.pitch * 180.0 / .pi   // radians -> degrees
-            self.webView.evaluateJavaScript(
-                "window.__facededupPhone && window.__facededupPhone(\(pitchDeg))", completionHandler: nil)
+        FacededupOfflineStore.shared.flush()   // drain anything queued from a prior session
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: startSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] ok in
+                DispatchQueue.main.async { if ok { self?.startSession() }
+                    else { self?.report("{\"type\":\"liveness\",\"outcome\":\"error\",\"error\":\"camera_denied\"}") } }
+            }
+        default:
+            report("{\"type\":\"liveness\",\"outcome\":\"error\",\"error\":\"camera_denied\"}")
         }
     }
 
-    /// Prime camera + mic permission BEFORE the WebView calls getUserMedia.
-    ///
-    /// iOS only lets WKWebView capture audio/video if the app already holds (or can
-    /// prompt for) the permission — which REQUIRES a usage string in the *host app's*
-    /// Info.plist: `NSCameraUsageDescription` for video, `NSMicrophoneUsageDescription`
-    /// for the mic. The read-a-number / voice challenge does `getUserMedia({audio:true})`,
-    /// so without the microphone key it silently fails to record.
-    ///
-    /// We must NOT call `AVCaptureDevice.requestAccess` for a media type whose usage
-    /// string is absent — iOS hard-crashes (TCC) in that case. So we guard on the key:
-    /// prime when present, and log a loud warning when the mic key is missing so the
-    /// integrator knows exactly why voice capture doesn't work.
-    private func primeCaptureThenLoad() {
-        func hasKey(_ k: String) -> Bool {
-            (Bundle.main.object(forInfoDictionaryKey: k) as? String)?.isEmpty == false
-        }
-        // Best-effort audio session so WebKit can record alongside playback (TTS prompts).
-        if hasKey("NSMicrophoneUsageDescription") {
-            try? AVAudioSession.sharedInstance().setCategory(.playAndRecord,
-                mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
-            try? AVAudioSession.sharedInstance().setActive(true)
-        } else {
-            NSLog("[Facededup] ⚠️ NSMicrophoneUsageDescription is missing from Info.plist — "
-                + "the read-a-number / voice challenge cannot record audio. Add it to enable voice.")
-        }
-        let group = DispatchGroup()
-        if hasKey("NSCameraUsageDescription") {
-            group.enter(); AVCaptureDevice.requestAccess(for: .video) { _ in group.leave() }
-        }
-        if hasKey("NSMicrophoneUsageDescription") {
-            group.enter(); AVCaptureDevice.requestAccess(for: .audio) { _ in group.leave() }
-        }
-        group.notify(queue: .main) { [weak self] in self?.loadFlow() }
-    }
+    // MARK: UI
 
-    private func loadFlow() {
-        var base = config.baseURL.absoluteString
-        if base.hasSuffix("/") { base.removeLast() }
-        var comps = URLComponents(string: base + "/demo/")
-        var q = config.queryItems()
-        // Cache-bust: a unique param per launch forces a fresh fetch of the HTML so a
-        // cached page can't pin the device to an OLD build. We DON'T purge the data
-        // store anymore — heavy static assets (9MB WASM, model, fonts) stay cached for
-        // fast repeat launches; .useProtocolCachePolicy honours the HTML's no-store.
-        q.append(URLQueryItem(name: "_cb", value: String(Int(Date().timeIntervalSince1970 * 1000))))
-        comps?.queryItems = q
-        pageURL = comps?.url
+    private func buildUI() {
+        overlay = OvalOverlayView(frame: view.bounds)
+        overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        overlay.ringColor = color(config.theme?.primaryColor ?? config.primaryColor) ?? UIColor(red: 0x1E/255, green: 0x9C/255, blue: 0x69/255, alpha: 1)
+        view.addSubview(overlay)
 
-        // Load the hosted flow over the NETWORK. This is REQUIRED for the camera/mic:
-        // WKWebView only grants getUserMedia to content served from a real page origin —
-        // content injected via loadHTMLString is denied with "The object is in an invalid
-        // state". If the network load fails (offline), didFailProvisionalNavigation falls
-        // back to the self-contained bundled flow so the flow still opens + queues.
-        triedBundleFallback = false
-        if let url = pageURL {
-            webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
-        } else {
-            loadBundledFallback()
+        titleLabel.text = "Position your face"
+        titleLabel.font = .systemFont(ofSize: 24, weight: .bold)
+        hintLabel.text = "Center your face in the oval"
+        hintLabel.font = .systemFont(ofSize: 16)
+        for (i, l) in [titleLabel, hintLabel].enumerated() {
+            l.textColor = .white; l.textAlignment = .center; l.numberOfLines = 0
+            l.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(l)
+            NSLayoutConstraint.activate([
+                l.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+                l.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+                l.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: i == 0 ? 32 : 76),
+            ])
         }
     }
 
-    /// Offline fallback: load the compiled-in self-contained flow. Capture support is
-    /// limited here (WKWebView restricts getUserMedia for loadHTMLString content), but
-    /// the flow opens and offline captures queue for deferred submit.
-    private func loadBundledFallback() {
-        guard !triedBundleFallback, let html = FacededupOfflineFlow.html else { return }
-        triedBundleFallback = true
-        webView.loadHTMLString(html, baseURL: pageURL)
+    public override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
+    }
+
+    // MARK: camera
+
+    private func startSession() {
+        camQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.session.beginConfiguration()
+            self.session.sessionPreset = .high
+            let position: AVCaptureDevice.Position = (self.config.agentMode == true) ? .back : .front
+            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
+                  let input = try? AVCaptureDeviceInput(device: device), self.session.canAddInput(input)
+            else { DispatchQueue.main.async { self.report("{\"type\":\"liveness\",\"outcome\":\"error\",\"error\":\"camera_init\"}") }; return }
+            self.session.addInput(input)
+            let out = AVCaptureVideoDataOutput()
+            out.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+            out.alwaysDiscardsLateVideoFrames = true
+            out.setSampleBufferDelegate(self, queue: self.camQueue)
+            if self.session.canAddOutput(out) { self.session.addOutput(out) }
+            self.session.commitConfiguration()
+
+            DispatchQueue.main.async {
+                let pl = AVCaptureVideoPreviewLayer(session: self.session)
+                pl.videoGravity = .resizeAspectFill
+                pl.frame = self.view.bounds
+                pl.connection?.videoOrientation = .portrait
+                self.view.layer.insertSublayer(pl, at: 0)
+                self.previewLayer = pl
+            }
+            self.session.startRunning()
+        }
+    }
+
+    private var orientation: CGImagePropertyOrientation { (config.agentMode == true) ? .right : .leftMirrored }
+
+    public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
+                              from connection: AVCaptureConnection) {
+        guard capturing, !finished else { return }
+        // Throttle detection to ~8 fps.
+        if Date().timeIntervalSince(lastAnalyze) < 0.12 { return }
+        lastAnalyze = Date()
+        guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let res = detector.detect(pixelBuffer: pb, orientation: orientation)
+        let present = (res["face"] as? Bool) ?? false
+        let yaw = (res["yaw"] as? Double) ?? 0
+        let smile = ((res["mouthSmileLeft"] as? Double) ?? 0)
+
+        let proves = task.current.proves
+        let satisfied = task.update(yaw: yaw, smile: smile, facePresent: present)
+        if portrait == nil && present && abs(yaw) < 10 { portrait = jpeg(pb) }
+        if satisfied, let b64 = jpeg(pb) { frames.append(.init(imageB64: b64, provesAction: proves)) }
+
+        let finishedNow = task.isFinished
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, !self.finished else { return }
+            self.overlay.ringColor = present ? (self.color(self.config.theme?.primaryColor ?? self.config.primaryColor) ?? .systemGreen) : UIColor(red: 0xE2/255, green: 0x4B/255, blue: 0x4A/255, alpha: 1)
+            self.titleLabel.text = finishedNow ? "Great" : "Step \(self.task.progress + 1) of \(self.task.total)"
+            self.hintLabel.text = self.task.hint(facePresent: present)
+        }
+        if finishedNow && capturing { capturing = false; DispatchQueue.main.async { [weak self] in self?.submit() } }
+    }
+
+    private func jpeg(_ pb: CVPixelBuffer) -> String? {
+        let ci = CIImage(cvPixelBuffer: pb).oriented(orientation)
+        let opts: [CIImageRepresentationOption: Any] =
+            [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): 0.85]
+        guard let data = ciContext.jpegRepresentation(of: ci, colorSpace: CGColorSpaceCreateDeviceRGB(), options: opts)
+        else { return nil }
+        return data.base64EncodedString()
+    }
+
+    // MARK: submit + report
+
+    private func submit() {
+        if finished { return }
+        titleLabel.text = "Checking…"; hintLabel.text = "One moment"
+        session.stopRunning()
+        var all: [NativeLivenessSubmit.Frame] = []
+        if let p = portrait { all.append(.init(imageB64: p, provesAction: nil)) }
+        all.append(contentsOf: frames)
+        NativeLivenessSubmit.submit(base: config.baseURL.absoluteString, license: config.licenseKey ?? "",
+                                    subjectId: config.subjectId ?? "user", method: config.method ?? "face_liveness",
+                                    actions: task.actionKeys(), frames: all) { [weak self] json in
+            DispatchQueue.main.async { self?.report(json) }
+        }
+    }
+
+    private func report(_ json: String) {
+        if finished { return }
+        finished = true
+        if session.isRunning { camQueue.async { self.session.stopRunning() } }
+        let result = FacededupResult.from(json: json)
+        delegate?.facededup(self, didFinish: result)
+        onFinish?(result)
     }
 
     public override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        if motion.isDeviceMotionActive { motion.stopDeviceMotionUpdates() }
+        if session.isRunning { camQueue.async { self.session.stopRunning() } }
         if !finished && (isBeingDismissed || isMovingFromParent) {
             finished = true
             delegate?.facededupDidCancel(self)
         }
     }
 
-    // MARK: camera/mic grant (iOS 15+)
-    @available(iOS 15.0, *)
-    public func webView(_ webView: WKWebView,
-                        requestMediaCapturePermissionFor origin: WKSecurityOrigin,
-                        initiatedByFrame frame: WKFrameInfo,
-                        type: WKMediaCaptureType,
-                        decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-        decisionHandler(.grant)
-    }
-
-    // MARK: HTTP Basic password (server ignores the username)
-    public func webView(_ webView: WKWebView,
-                        didReceive challenge: URLAuthenticationChallenge,
-                        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodHTTPBasic,
-           let pw = config.password, !pw.isEmpty {
-            completionHandler(.useCredential,
-                              URLCredential(user: "facededup", password: pw, persistence: .forSession))
-        } else {
-            completionHandler(.performDefaultHandling, nil)
-        }
-    }
-
-    // MARK: offline / load-failure handling
-    // The flow is server-hosted (verification needs the backend anyway), so a
-    // failed load — e.g. airplane mode — shows a native "no connection · Retry"
-    // screen instead of WebKit's raw error page.
-    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        clearOffline()
-    }
-
-    public func webView(_ webView: WKWebView,
-                        didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        showOfflineIfNetworkError(error)
-    }
-
-    public func webView(_ webView: WKWebView,
-                        didFail navigation: WKNavigation!, withError error: Error) {
-        showOfflineIfNetworkError(error)
-    }
-
-    private func showOfflineIfNetworkError(_ error: Error) {
-        let code = (error as NSError).code
-        if code == NSURLErrorCancelled { return }          // navigation superseded, not a failure
-        // Network load failed (offline / server unreachable): fall back to the
-        // self-contained bundled flow so the user can still capture (queued for later),
-        // instead of a dead-end "no connection" screen.
-        if !triedBundleFallback, FacededupOfflineFlow.html != nil {
-            loadBundledFallback()
-            return
-        }
-        guard offlineView == nil else { return }
-
-        let container = UIView()
-        container.backgroundColor = .systemBackground
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let title = UILabel()
-        title.text = "No internet connection"
-        title.font = .preferredFont(forTextStyle: .headline)
-        title.textAlignment = .center
-
-        let subtitle = UILabel()
-        subtitle.text = "Verification needs a connection. Check your network and try again."
-        subtitle.font = .preferredFont(forTextStyle: .subheadline)
-        subtitle.textColor = .secondaryLabel
-        subtitle.numberOfLines = 0
-        subtitle.textAlignment = .center
-
-        let retry = UIButton(type: .system)
-        retry.setTitle("Retry", for: .normal)
-        retry.titleLabel?.font = .preferredFont(forTextStyle: .headline)
-        retry.addTarget(self, action: #selector(retryTapped), for: .touchUpInside)
-
-        let stack = UIStackView(arrangedSubviews: [title, subtitle, retry])
-        stack.axis = .vertical
-        stack.spacing = 12
-        stack.alignment = .center
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        container.addSubview(stack)
-        view.addSubview(container)
-        NSLayoutConstraint.activate([
-            container.topAnchor.constraint(equalTo: view.topAnchor),
-            container.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            container.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            container.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            stack.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 32),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -32),
-        ])
-        offlineView = container
-    }
-
-    private func clearOffline() {
-        offlineView?.removeFromSuperview()
-        offlineView = nil
-    }
-
-    @objc private func retryTapped() {
-        clearOffline()
-        loadFlow()
-    }
-
-    // MARK: bridge messages
-    public func userContentController(_ controller: WKUserContentController,
-                                      didReceive message: WKScriptMessage) {
-        switch message.name {
-        case "facededup":
-            guard !finished else { return }
-            let result: FacededupResult
-            if let s = message.body as? String {
-                result = FacededupResult.from(json: s)
-            } else if let d = message.body as? [String: Any] {
-                result = FacededupResult.from(obj: d)
-            } else {
-                return
-            }
-            finished = true
-            delegate?.facededup(self, didFinish: result)
-            onFinish?(result)
-
-        case "facededupAttest":
-            let nonce = (message.body as? String) ?? ""
-            Task { await self.handleAttestation(nonce: nonce) }
-
-        case "facededupHaptic":
-            // iOS WebKit has no navigator.vibrate, so the web flow asks us to buzz.
-            let kind = (message.body as? String) ?? "tick"
-            DispatchQueue.main.async {
-                if kind == "success" {
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                } else {
-                    let g = UIImpactFeedbackGenerator(style: .medium)
-                    g.prepare(); g.impactOccurred()
-                }
-            }
-
-        case "facededupQueueOffline":
-            // Device is offline: persist the capture and submit it to /v1/offline/submit
-            // when connectivity returns. The verdict is delivered to the tenant's webhook.
-            guard let payload = message.body as? String else { return }
-            FacededupOfflineStore.shared.enqueue(
-                payload: payload,
-                base: config.baseURL.absoluteString,
-                license: config.licenseKey ?? "")
-
-        case "facededupDetect":
-            guard let body = message.body as? [String: Any],
-                  let b64 = body["jpeg"] as? String else { return }
-            // Run Vision off the main thread, post the result back to the page.
-            detectQueue.async { [weak self] in
-                guard let self = self else { return }
-                let res = self.detector.detect(base64JPEG: b64)
-                guard let data = try? JSONSerialization.data(withJSONObject: res),
-                      let json = String(data: data, encoding: .utf8) else { return }
-                DispatchQueue.main.async {
-                    self.webView.evaluateJavaScript(
-                        "window.__facededupPose && window.__facededupPose(\(json))",
-                        completionHandler: nil)
-                }
-            }
-
-        default:
-            break
-        }
-    }
-
-    /// Mint an attestation token for `nonce` (if a provider is configured) and hand
-    /// it back to the web flow via `window.__onFacededupAttestation(token)`.
-    private func handleAttestation(nonce: String) async {
-        let token = await config.attestationProvider?(nonce)
-        let arg = FacededupVerificationController.jsStringLiteral(token)
-        await MainActor.run {
-            self.webView.evaluateJavaScript(
-                "window.__onFacededupAttestation && window.__onFacededupAttestation(\(arg))",
-                completionHandler: nil)
-        }
-    }
-
-    /// Encode `s` as a safe JS string literal, or the literal `null`.
-    static func jsStringLiteral(_ s: String?) -> String {
-        guard let s = s,
-              let data = try? JSONSerialization.data(withJSONObject: [s]),
-              let json = String(data: data, encoding: .utf8) else { return "null" }
-        // ["<escaped>"] -> "<escaped>"
-        return String(json.dropFirst().dropLast())
+    private func color(_ hex: String?) -> UIColor? {
+        guard var h = hex?.trimmingCharacters(in: .whitespaces), h.hasPrefix("#") else { return nil }
+        h.removeFirst()
+        guard let v = UInt32(h, radix: 16), h.count == 6 else { return nil }
+        return UIColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
+                       blue: CGFloat(v & 0xFF) / 255, alpha: 1)
     }
 }
 
-/// Breaks the retain cycle WKWebView -> WKUserContentController -> handler.
-private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
-    weak var target: WKScriptMessageHandler?
-    init(_ target: WKScriptMessageHandler) { self.target = target }
-    func userContentController(_ controller: WKUserContentController,
-                               didReceive message: WKScriptMessage) {
-        target?.userContentController(controller, didReceive: message)
+/// Scrim with a centred oval cut-out + a coloured ring (native oval, replaces the web one).
+final class OvalOverlayView: UIView {
+    var ringColor: UIColor = .systemGreen { didSet { setNeedsDisplay() } }
+    override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; isUserInteractionEnabled = false }
+    required init?(coder: NSCoder) { fatalError() }
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        let ow = bounds.width * 0.66, oh = bounds.width * 0.66 * 1.32
+        let oval = CGRect(x: (bounds.width - ow) / 2, y: bounds.height * 0.46 - oh / 2, width: ow, height: oh)
+        ctx.setFillColor(UIColor(red: 0x0B/255, green: 0x1F/255, blue: 0x3A/255, alpha: 0.8).cgColor)
+        ctx.fill(bounds)
+        ctx.setBlendMode(.clear); ctx.fillEllipse(in: oval)
+        ctx.setBlendMode(.normal)
+        ctx.setStrokeColor(ringColor.cgColor); ctx.setLineWidth(5)
+        ctx.strokeEllipse(in: oval)
     }
 }
 #endif

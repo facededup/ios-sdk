@@ -2,6 +2,8 @@
 import Vision
 import CoreGraphics
 import ImageIO
+import CoreImage
+import CoreVideo
 
 /// On-device face detection for the iOS hybrid flow.
 ///
@@ -28,6 +30,16 @@ final class FacededupVisionDetector {
     private static let pitchSign: Double = 1.0
 
     private let handler = VNSequenceRequestHandler()
+    private let ciContext = CIContext(options: nil)
+
+    /// Live camera path (2.0 native flow): detect on a CVPixelBuffer. Converts to a
+    /// CGImage (applying the camera orientation) and reuses `detect(cgImage:)` so all
+    /// the yaw/smile/landmark extraction is shared. `{"face": false}` when no face.
+    func detect(pixelBuffer pb: CVPixelBuffer, orientation: CGImagePropertyOrientation) -> [String: Any] {
+        let ci = CIImage(cvPixelBuffer: pb).oriented(orientation)
+        guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return ["face": false] }
+        return detect(cgImage: cg)
+    }
 
     /// Decode a base64 JPEG (as sent by the web flow) and detect. Returns a dict
     /// ready to hand to `window.__facededupPose(...)`. `{"face": false}` when no face.

@@ -34,6 +34,6 @@ targets:
       base:
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
-        MARKETING_VERSION: "1.1.1"
-        CURRENT_PROJECT_VERSION: "201"
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "2000"
         PRODUCT_BUNDLE_IDENTIFIER: ai.facededup.sample
