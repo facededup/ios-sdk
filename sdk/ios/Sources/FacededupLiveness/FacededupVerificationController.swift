@@ -38,6 +38,9 @@ public final class FacededupVerificationController: UIViewController,
     private var triedBundleFallback = false // did we already fall back to the bundled flow?
     private let detector = FacededupVisionDetector()
     private let detectQueue = DispatchQueue(label: "ng.facededup.vision", qos: .userInitiated)
+    // iOS UIScreen.brightness is SYSTEM-WIDE and does not auto-revert, so we save
+    // the user's level on entry and restore it when the flow ends.
+    private var originalBrightness: CGFloat?
 
     public init(config: FacededupConfig, onFinish: ((FacededupResult) -> Void)? = nil) {
         self.config = config
@@ -57,6 +60,7 @@ public final class FacededupVerificationController: UIViewController,
         content.add(proxy, name: "facededupAttest")  // attestation request bridge
         content.add(proxy, name: "facededupDetect")  // hybrid: frame -> native Vision
         content.add(proxy, name: "facededupHaptic")  // haptic cue on action success (iOS has no navigator.vibrate)
+        content.add(proxy, name: "facededupBrightness")  // light the user's face during capture
         content.add(proxy, name: "facededupQueueOffline")  // offline capture -> deferred /v1/offline/submit
 
         // HYBRID DETECTION: tell the web flow to route on-device detection through
@@ -99,12 +103,27 @@ public final class FacededupVerificationController: UIViewController,
 
     public override func viewDidLoad() {
         super.viewDidLoad()
+        originalBrightness = UIScreen.main.brightness   // remember to restore on exit
         // Drain any captures queued offline in a previous session, and keep submitting
         // whenever connectivity returns while this controller is alive.
         FacededupOfflineStore.shared.startMonitoring()
         FacededupOfflineStore.shared.flush()
         startMotionFeed()
         primeCaptureThenLoad()
+    }
+
+    public override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        restoreBrightness()
+    }
+
+    deinit { restoreBrightness() }
+
+    /// Put the screen brightness back to whatever the user had before the flow.
+    /// Idempotent: keeps the saved value so a later re-brighten + dismiss still restores.
+    private func restoreBrightness() {
+        guard let b = originalBrightness else { return }
+        DispatchQueue.main.async { UIScreen.main.brightness = b }
     }
 
     private func startMotionFeed() {
@@ -328,11 +347,27 @@ public final class FacededupVerificationController: UIViewController,
             // iOS WebKit has no navigator.vibrate, so the web flow asks us to buzz.
             let kind = (message.body as? String) ?? "tick"
             DispatchQueue.main.async {
-                if kind == "success" {
+                switch kind {
+                case "success":
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
-                } else {
+                case "error", "fail", "wrong":
+                    // Wrong move (e.g. turned left for a "turn right") -> error feedback.
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                default:
                     let g = UIImpactFeedbackGenerator(style: .medium)
                     g.prepare(); g.impactOccurred()
+                }
+            }
+
+        case "facededupBrightness":
+            // Light the user's face during capture; the web sends "1" (full) / "-1"
+            // (restore). UIScreen.brightness is system-wide, restored on exit.
+            let level = (message.body as? String) ?? "-1"
+            DispatchQueue.main.async {
+                if let f = Double(level), f >= 0 {
+                    UIScreen.main.brightness = CGFloat(min(1.0, f))
+                } else {
+                    self.restoreBrightness()
                 }
             }
 
