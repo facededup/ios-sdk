@@ -29,6 +29,15 @@ final class FacededupVisionDetector {
 
     private let handler = VNSequenceRequestHandler()
 
+    // Geometric-pitch neutral calibration. The eye/nose/mouth foreshortening ratio is
+    // ~0.5–0.65 for a NEUTRAL forward face, so reporting `ratio * 150` made a forward
+    // face read ~75–95° and the page's positioning gate (|pitch| > 22) never cleared.
+    // We learn the user's neutral ratio during the forward-hold and report pitch as a
+    // DELTA from it, so forward ≈ 0° and look up/down move it. Serial detect queue, so
+    // these need no locking. (calibrated on the first frontal frames, then frozen.)
+    private var neutralRatio: Double?
+    private var neutralSamples = 0
+
     /// Decode a base64 JPEG (as sent by the web flow) and detect. Returns a dict
     /// ready to hand to `window.__facededupPose(...)`. `{"face": false}` when no face.
     func detect(base64JPEG: String) -> [String: Any] {
@@ -99,8 +108,17 @@ final class FacededupVisionDetector {
             let noseToMouth = ny - my
             let denom = eyeToNose + noseToMouth
             if denom > 1e-4 {
-                let ratio = eyeToNose / denom     // ~0.5 neutral; look-down raises it, look-up lowers it
-                out["pitch"] = Self.pitchSign * (ratio * 150.0)
+                let ratio = eyeToNose / denom     // look-down raises it, look-up lowers it
+                // Learn the neutral ratio during the forward-hold (small yaw), for the
+                // first ~25 frontal frames, then freeze it. Report pitch as a delta from
+                // neutral so a forward face is ~0° (was ~75–95°, which jammed positioning).
+                let yawDeg = abs(((face.yaw?.doubleValue) ?? 0) * 180.0 / .pi)
+                if neutralSamples < 25 && yawDeg < 14 {
+                    neutralRatio = (neutralRatio ?? ratio) * 0.8 + ratio * 0.2
+                    neutralSamples += 1
+                }
+                let base = neutralRatio ?? ratio
+                out["pitch"] = Self.pitchSign * (ratio - base) * 150.0
             }
         }
 
