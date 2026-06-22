@@ -37,6 +37,11 @@ final class FacededupVisionDetector {
     // these need no locking. (calibrated on the first frontal frames, then frozen.)
     private var neutralRatio: Double?
     private var neutralSamples = 0
+    // Smile is approximated from outer-lip WIDTH (Vision has no smile blendshape).
+    // Neutral width varies per face, so a fixed baseline made many users unable to
+    // cross the page's smile gate. Learn the neutral width during the forward-hold and
+    // report smile as a scaled delta from it.
+    private var neutralMouthWidth: Double?
 
     /// Decode a base64 JPEG (as sent by the web flow) and detect. Returns a dict
     /// ready to hand to `window.__facededupPose(...)`. `{"face": false}` when no face.
@@ -134,11 +139,20 @@ final class FacededupVisionDetector {
         out["eyeBlinkLeft"]  = blink(lm.leftEye)
         out["eyeBlinkRight"] = blink(lm.rightEye)
 
-        // Smile: mouth width / face width → smile score (neutral ≈ 0.42). jawOpen: lip gap.
+        // Smile: outer-lip WIDTH delta from the user's calibrated neutral (Vision has
+        // no smile blendshape). The page passes at avg smile >= 0.40, so we scale the
+        // width increase so a genuine smile clears it regardless of natural mouth size.
         if let lips = lm.outerLips?.normalizedPoints, lips.count >= 4 {
             var minX = CGFloat.greatestFiniteMagnitude, maxX = -minX, minY = minX, maxY = -minX
             for p in lips { minX = min(minX, p.x); maxX = max(maxX, p.x); minY = min(minY, p.y); maxY = max(maxY, p.y) }
-            let smile = max(0, min(1, (Double(maxX - minX) - 0.42) / 0.12))
+            let width = Double(maxX - minX)
+            // Calibrate neutral width during the forward-hold (small yaw), then freeze.
+            let yawDeg2 = abs(((face.yaw?.doubleValue) ?? 0) * 180.0 / .pi)
+            if neutralSamples <= 25 && yawDeg2 < 14 {
+                neutralMouthWidth = (neutralMouthWidth ?? width) * 0.8 + width * 0.2
+            }
+            let baseW = neutralMouthWidth ?? width
+            let smile = max(0, min(1, (width - baseW) / 0.09))   // +0.036 width -> passes (0.40)
             out["mouthSmileLeft"]  = smile
             out["mouthSmileRight"] = smile
             out["jawOpen"] = max(0, min(1, (Double(maxY - minY) - 0.06) / 0.14))
