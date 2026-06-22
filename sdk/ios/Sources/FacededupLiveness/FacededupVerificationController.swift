@@ -70,6 +70,13 @@ public final class FacededupVerificationController: UIViewController,
         content.addUserScript(WKUserScript(source: "window.__FACEDEDUP_NATIVE_DETECT = true;",
             injectionTime: .atDocumentStart, forMainFrameOnly: false))
 
+        // NATIVE device/fraud signals (exact model + arch, jailbreak/debugger, bundle,
+        // memory, cameras, App Attest, VPN…) the browser can't see — the web SDK's
+        // collectDeviceContext() merges them from window.__FACEDEDUP_NATIVE_SIGNALS.
+        let signals = FacededupDeviceSignals.collectJSON()
+        content.addUserScript(WKUserScript(source: "window.__FACEDEDUP_NATIVE_SIGNALS = \(signals);",
+            injectionTime: .atDocumentStart, forMainFrameOnly: false))
+
         // The page is gated by HTTP Basic. The navigation auth handler covers the
         // document load, but the page's own fetch() API calls need the header too —
         // inject window.__API_AUTH at document start (parity with Android) so every
