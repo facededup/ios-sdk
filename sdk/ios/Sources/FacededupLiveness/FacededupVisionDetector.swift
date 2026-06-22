@@ -42,6 +42,7 @@ final class FacededupVisionDetector {
     // cross the page's smile gate. Learn the neutral width during the forward-hold and
     // report smile as a scaled delta from it.
     private var neutralMouthWidth: Double?
+    private var neutralCornerLift: Double?   // mouth-corner rise at neutral (smile raises it)
 
     /// Decode a base64 JPEG (as sent by the web flow) and detect. Returns a dict
     /// ready to hand to `window.__facededupPose(...)`. `{"face": false}` when no face.
@@ -139,20 +140,30 @@ final class FacededupVisionDetector {
         out["eyeBlinkLeft"]  = blink(lm.leftEye)
         out["eyeBlinkRight"] = blink(lm.rightEye)
 
-        // Smile: outer-lip WIDTH delta from the user's calibrated neutral (Vision has
-        // no smile blendshape). The page passes at avg smile >= 0.40, so we scale the
-        // width increase so a genuine smile clears it regardless of natural mouth size.
+        // Smile: Vision has no smile blendshape, so combine TWO landmark cues vs the
+        // user's calibrated neutral and take the stronger one — width alone was too
+        // weak/noisy. (1) outer-lip WIDTH increase, (2) mouth-CORNER lift (the corners
+        // rise relative to the lip centre when you smile — the most reliable cue).
         if let lips = lm.outerLips?.normalizedPoints, lips.count >= 4 {
             var minX = CGFloat.greatestFiniteMagnitude, maxX = -minX, minY = minX, maxY = -minX
-            for p in lips { minX = min(minX, p.x); maxX = max(maxX, p.x); minY = min(minY, p.y); maxY = max(maxY, p.y) }
+            var yAtMinX = 0.0, yAtMaxX = 0.0; var sumY: CGFloat = 0
+            for p in lips {
+                if p.x < minX { minX = p.x; yAtMinX = Double(p.y) }
+                if p.x > maxX { maxX = p.x; yAtMaxX = Double(p.y) }
+                minY = min(minY, p.y); maxY = max(maxY, p.y); sumY += p.y
+            }
             let width = Double(maxX - minX)
-            // Calibrate neutral width during the forward-hold (small yaw), then freeze.
+            let centerY = Double(sumY) / Double(lips.count)
+            let cornerLift = (yAtMinX + yAtMaxX) / 2.0 - centerY    // y-up: corners above centre => smiling
+            // Calibrate both neutrals during the forward-hold (small yaw), then freeze.
             let yawDeg2 = abs(((face.yaw?.doubleValue) ?? 0) * 180.0 / .pi)
             if neutralSamples <= 25 && yawDeg2 < 14 {
                 neutralMouthWidth = (neutralMouthWidth ?? width) * 0.8 + width * 0.2
+                neutralCornerLift = (neutralCornerLift ?? cornerLift) * 0.8 + cornerLift * 0.2
             }
-            let baseW = neutralMouthWidth ?? width
-            let smile = max(0, min(1, (width - baseW) / 0.09))   // +0.036 width -> passes (0.40)
+            let widthSmile  = (width - (neutralMouthWidth ?? width)) / 0.075
+            let cornerSmile = (cornerLift - (neutralCornerLift ?? cornerLift)) / 0.04
+            let smile = max(0, min(1, max(widthSmile, cornerSmile)))
             out["mouthSmileLeft"]  = smile
             out["mouthSmileRight"] = smile
             out["jawOpen"] = max(0, min(1, (Double(maxY - minY) - 0.06) / 0.14))
