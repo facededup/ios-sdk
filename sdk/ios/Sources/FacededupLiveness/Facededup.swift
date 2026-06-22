@@ -138,6 +138,13 @@ public struct FacededupTheme {
 }
 
 /// Result reported by the flow (parsed from the web bridge `postToHost`).
+/// A captured image returned with the result: `{ imageType, image }` where `image`
+/// is a raw Base64-encoded JPEG (no `data:` prefix).
+public struct FacededupImage {
+    public let imageType: String
+    public let image: String
+}
+
 public struct FacededupResult {
     public let type: String            // liveness | identity | document | enroll
     public let outcome: String?        // live | not_live | referred | match | found | enrolled …
@@ -145,6 +152,8 @@ public struct FacededupResult {
     public let score: Double?          // liveness score, or identity/document match score
     public let decision: String?
     public let enrollmentId: String?
+    public let selfieImage: FacededupImage?       // best selfie
+    public let livelinessImages: [FacededupImage] // 4–8 proving frames
     public let raw: [String: Any]      // the full payload
 
     /// True for a clearly successful verification / enrolment.
@@ -161,13 +170,23 @@ public struct FacededupResult {
     }
 
     static func from(obj o: [String: Any]) -> FacededupResult {
-        FacededupResult(
+        // Images arrive as { image_type, image:<base64> }. Surface them as typed
+        // accessors (parity with Android); they're also left in `raw`.
+        func img(_ v: Any?) -> FacededupImage? {
+            guard let d = v as? [String: Any], let image = d["image"] as? String, !image.isEmpty
+            else { return nil }
+            return FacededupImage(imageType: d["image_type"] as? String ?? "", image: image)
+        }
+        let liveliness = (o["liveliness_images"] as? [[String: Any]])?.compactMap { img($0) } ?? []
+        return FacededupResult(
             type: o["type"] as? String ?? "liveness",
             outcome: o["outcome"] as? String,
             isLive: o["is_live"] as? Bool,
             score: (o["score"] as? Double) ?? (o["match_score"] as? Double),
             decision: o["decision"] as? String,
             enrollmentId: o["enrollment_id"] as? String,
+            selfieImage: img(o["selfie_image"]),
+            livelinessImages: liveliness,
             raw: o)
     }
 }
