@@ -41,6 +41,13 @@ public final class FacededupVerificationController: UIViewController,
     // iOS UIScreen.brightness is SYSTEM-WIDE and does not auto-revert, so we save
     // the user's level on entry and restore it when the flow ends.
     private var originalBrightness: CGFloat?
+    // Device-motion liveness: a hand-held LIVE device has natural micro-tremor; a
+    // device on a tripod/stand (printed photo / screen replay) is unnaturally still.
+    // Accumulate user-acceleration magnitude (gravity removed) -> RMS, injected into
+    // window.__FACEDEDUP_NATIVE_SIGNALS.device for the server risk engine.
+    private var motionSumSq = 0.0
+    private var motionN = 0
+    private var lastMotionInject: CFTimeInterval = 0
 
     public init(config: FacededupConfig, onFinish: ((FacededupResult) -> Void)? = nil) {
         self.config = config
@@ -141,6 +148,21 @@ public final class FacededupVerificationController: UIViewController,
             let pitchDeg = m.attitude.pitch * 180.0 / .pi   // radians -> degrees
             self.webView.evaluateJavaScript(
                 "window.__facededupPhone && window.__facededupPhone(\(pitchDeg))", completionHandler: nil)
+            // Accumulate user-acceleration magnitude (g, gravity removed).
+            let a = m.userAcceleration
+            let mag = (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot()
+            self.motionSumSq += mag * mag; self.motionN += 1
+            // ~Every 1.5s refresh the injected motion RMS (latest wins at submit time).
+            let now = CACurrentMediaTime()
+            if self.motionN >= 10, now - self.lastMotionInject > 1.5 {
+                self.lastMotionInject = now
+                let rms = (self.motionSumSq / Double(self.motionN)).squareRoot()
+                let js = "window.__FACEDEDUP_NATIVE_SIGNALS=window.__FACEDEDUP_NATIVE_SIGNALS||{};" +
+                    "window.__FACEDEDUP_NATIVE_SIGNALS.device=window.__FACEDEDUP_NATIVE_SIGNALS.device||{};" +
+                    "window.__FACEDEDUP_NATIVE_SIGNALS.device.device_motion_rms=\(String(format: "%.5f", rms));" +
+                    "window.__FACEDEDUP_NATIVE_SIGNALS.device.device_motion_samples=\(self.motionN);"
+                self.webView.evaluateJavaScript(js, completionHandler: nil)
+            }
         }
     }
 
