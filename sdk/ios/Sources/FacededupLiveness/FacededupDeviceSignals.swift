@@ -31,6 +31,9 @@ enum FacededupDeviceSignals {
         device["host_application"] = (b.infoDictionary?["CFBundleName"] as? String)
             ?? (b.infoDictionary?["CFBundleDisplayName"] as? String)
         device["app_version"] = b.infoDictionary?["CFBundleShortVersionString"] as? String
+        // Stable, app-scoped device id (for device-farm velocity). identifierForVendor
+        // is per-vendor per-device — not cross-app trackable.
+        device["device_id"] = UIDevice.current.identifierForVendor?.uuidString
 
         // Privileges / environment
         device["is_rooted_jailbroken"] = isJailbroken()
