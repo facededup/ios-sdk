@@ -17,8 +17,8 @@ import Foundation
 // `swift build` on macOS uses the from-source path (the default).
 
 // --- BINARY DISTRIBUTION (managed by scripts/build-ios-xcframework.sh) -------
-let binaryURL = "https://swiftend-assets-348761024048.s3.eu-west-2.amazonaws.com/sdk/ios/FacededupLiveness-1.3.9.xcframework.zip"
-let binaryChecksum = "eafb50406ff4020e4f816ce488b32a380387fc1a2f88a85f033b45e900318547"
+let binaryURL = "https://swiftend-assets-348761024048.s3.eu-west-2.amazonaws.com/sdk/ios/FacededupLiveness-1.3.10.xcframework.zip"
+let binaryChecksum = "c4cbb7814a91eb3fda30f6194cc5b58a25df43c57063e7ca8981a5e1f95b6091"
 // ----------------------------------------------------------------------------
 
 let useBinary = ProcessInfo.processInfo.environment["FACEDEDUP_USE_BINARY"] == "1"
