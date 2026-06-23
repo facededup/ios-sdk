@@ -36,6 +36,12 @@ public final class FacededupVerificationController: UIViewController,
     private var offlineView: UIView?
     private var pageURL: URL?               // the hosted /demo/ URL we load over the network
     private var triedBundleFallback = false // did we already fall back to the bundled flow?
+    // The embedded fallback flow is a copy compiled into the binary; it can lag the
+    // live flow. So a TRANSIENT network blip must NOT drop the user onto it — retry the
+    // live load a few times (short backoff) first, and only fall back on a sustained
+    // failure (genuinely offline). Reset on every fresh loadFlow().
+    private var networkLoadAttempts = 0
+    private let maxNetworkLoadAttempts = 3   // ~0.4s + ~0.8s backoff before falling back
     private let detector = FacededupVisionDetector()
     private let detectQueue = DispatchQueue(label: "ng.facededup.vision", qos: .userInitiated)
     // iOS UIScreen.brightness is SYSTEM-WIDE and does not auto-revert, so we save
@@ -220,11 +226,19 @@ public final class FacededupVerificationController: UIViewController,
         // state". If the network load fails (offline), didFailProvisionalNavigation falls
         // back to the self-contained bundled flow so the flow still opens + queues.
         triedBundleFallback = false
+        networkLoadAttempts = 0
         if let url = pageURL {
-            webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+            startNetworkLoad()
         } else {
             loadBundledFallback()
         }
+    }
+
+    /// Issue (or re-issue) the live network load and count the attempt.
+    private func startNetworkLoad() {
+        guard let url = pageURL else { loadBundledFallback(); return }
+        networkLoadAttempts += 1
+        webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
     }
 
     /// Offline fallback: load the compiled-in self-contained flow. Capture support is
@@ -289,9 +303,20 @@ public final class FacededupVerificationController: UIViewController,
     private func showOfflineIfNetworkError(_ error: Error) {
         let code = (error as NSError).code
         if code == NSURLErrorCancelled { return }          // navigation superseded, not a failure
-        // Network load failed (offline / server unreachable): fall back to the
-        // self-contained bundled flow so the user can still capture (queued for later),
-        // instead of a dead-end "no connection" screen.
+        // A TRANSIENT blip must not strand the user on the (possibly stale) embedded
+        // flow. Retry the LIVE load a few times with a short backoff first; only a
+        // sustained failure falls back.
+        if networkLoadAttempts < maxNetworkLoadAttempts {
+            let delay = 0.4 * Double(networkLoadAttempts)   // 0.4s, 0.8s
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self, !self.finished, !self.triedBundleFallback else { return }
+                self.startNetworkLoad()
+            }
+            return
+        }
+        // Sustained failure (genuinely offline): fall back to the self-contained bundled
+        // flow so the user can still capture (queued for later), instead of a dead-end
+        // "no connection" screen.
         if !triedBundleFallback, FacededupOfflineFlow.html != nil {
             loadBundledFallback()
             return
